@@ -9,9 +9,7 @@ gh-release:
 	git tag -s v$(VERSION) -m "v$(VERSION)"
 	git push
 	git push --tags
-	cd $(RELEASE_PATH) && \
-		rm SHA256SUMS.asc && \
-		gpg --detach-sig SHA256SUMS
+	cd $(RELEASE_PATH) && gpg --detach-sig SHA256SUMS
 	gh release create v$(VERSION) --title v$(VERSION) --draft --notes-file release-notes-template.md $(RELEASE_PATH)/*
 
 btcpay-appsettings:
