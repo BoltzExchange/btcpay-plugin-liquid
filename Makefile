@@ -1,4 +1,4 @@
-VERSION := 2.4.1
+VERSION := 2.4.2
 RELEASE_PATH := ./release/BTCPayServer.Plugins.Boltz/$(VERSION)
 BOLTZ_REGTEST ?= $(CURDIR)/regtest
 BOLTZ_REGTEST_PATH := $(abspath $(BOLTZ_REGTEST))
