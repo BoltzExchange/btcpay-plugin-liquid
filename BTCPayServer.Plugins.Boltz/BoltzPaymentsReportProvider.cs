@@ -106,8 +106,6 @@ public class BoltzPaymentsReportProvider : ReportProvider
             OrderByDesc = false,
         }, cancellation);
 
-        var boltzPaymentMethodId = PaymentTypes.LN.GetPaymentMethodId("BTC");
-
         foreach (var invoice in invoices)
         {
             foreach (var payment in invoice.GetPayments(true))
@@ -121,14 +119,13 @@ public class BoltzPaymentsReportProvider : ReportProvider
                 _handlers.TryGetValue(paymentMethodId, out var handler);
 
                 BoltzSettlementData? boltzPaymentData = null;
-                if (paymentMethodId == boltzPaymentMethodId)
+                if (handler is ILightningPaymentHandler)
                 {
-                    boltzPaymentData = await _boltzService.GetBoltzSettlementData(queryContext.StoreId, payment, invoice);
+                    boltzPaymentData = await _boltzService.GetBoltzSettlementData(
+                        queryContext.StoreId, payment, invoice, cancellation);
                 }
 
-                var isBoltzLightningPayment =
-                    paymentMethodId == boltzPaymentMethodId &&
-                    boltzPaymentData is not null;
+                var isBoltzLightningPayment = boltzPaymentData is not null;
 
                 if (handler is ILightningPaymentHandler)
                 {
