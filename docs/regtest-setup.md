@@ -1,7 +1,7 @@
 ---
 description:
   How to set up a local regtest environment for Boltz BTCPay Plugin development
-  using Boltz Regtest and the BTCPay profile.
+  using Boltz Regtest.
 next: false
 ---
 
@@ -11,10 +11,19 @@ This page describes how to setup a regtest environment for plugin development.
 
 ## Regtest Setup Guide
 
-First, set up [Boltz Regtest](https://github.com/BoltzExchange/regtest). Run
-`export COMPOSE_PROFILES=btcpay,default` before starting Boltz Regtest (or add
-it to your `.bashrc` or `.zshrc`) in order to initialize it with the BTCPay
-profile.
+First, set up [Boltz Regtest](https://github.com/BoltzExchange/regtest). The
+plugin keeps its regtest profile in `.env.regtest` and uses a repo-local compose
+override so it can run without the EVM services or a BTCPay-specific profile.
+
+```bash
+./regtest-config/prepare.sh
+cd regtest
+set -a
+source ../.env.regtest
+set +a
+docker compose down --volumes
+./start.sh
+```
 
 Install the .NET SDK v8 (necessary to build the Plugin).
 
