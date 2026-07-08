@@ -1,0 +1,44 @@
+services:
+  boltz-backend:
+    volumes:
+      - ../regtest-config/boltz.conf:/boltz-data/boltz.conf:ro,z
+
+  regtest-start:
+    depends_on: !override
+      bitcoind-init:
+        condition: service_completed_successfully
+      elementsd:
+        condition: service_healthy
+      lnd-1:
+        condition: service_healthy
+      lnd-2:
+        condition: service_healthy
+      lnd-3:
+        condition: service_healthy
+      cln-1:
+        condition: service_healthy
+      cln-2:
+        condition: service_healthy
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        source /etc/profile.d/utils.sh
+        restart_offer_plugin 1
+        restart_offer_plugin 2
+        regtest-init
+
+  anvil:
+    profiles: !override ['evm']
+
+  anvil-eth:
+    profiles: !override ['evm']
+
+  anvil-arb:
+    profiles: !override ['evm']
+
+  gas-sponsor-emulator:
+    profiles: !override ['evm']
+
+  nbxplorer:
+    profiles: !override ['ci', 'ark', 'backend-dev']
