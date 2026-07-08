@@ -59,8 +59,12 @@ jobs:
 
       - name: Setup Boltz regtest
         env:
-          COMPOSE_PROFILES: btcpay,ci
-        run: cd regtest && ./start.sh
+          COMPOSE_FILE: docker-compose.yml:../docker-compose.plugin-regtest.yml
+          COMPOSE_PROFILES: ci
+        run: |
+          ./regtest-config/prepare.sh
+          cd regtest
+          ./start.sh
 
       - name: Run tests
         run: make test

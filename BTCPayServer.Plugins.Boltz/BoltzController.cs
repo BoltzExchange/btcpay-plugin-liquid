@@ -50,6 +50,7 @@ public class BoltzController(
 
     private const string BtcPayName = "BTCPay";
     private const string BackUrl = "BackUrl";
+    private const int LogFilesPageSize = 5;
 
     private StoreData CurrentStore => HttpContext.GetStoreData();
     private string CurrentStoreId => CurrentStore.Id;
@@ -737,11 +738,7 @@ public class BoltzController(
         // We are checking if "di" is null above yet accessing GetFiles on it, this could lead to an exception?
         var logFiles = di.GetFiles($"{Path.GetFileNameWithoutExtension(fileName)}*{Path.GetExtension(fileName)}");
         vm.Log.LogFileCount = logFiles.Length;
-        vm.Log.LogFiles = logFiles
-            .OrderBy(info => info.LastWriteTime)
-            .Skip(offset)
-            .Take(5)
-            .ToList();
+        vm.Log.LogFiles = GetLogFilesPage(logFiles, offset);
         vm.Log.LogFileOffset = offset;
 
         if (string.IsNullOrEmpty(logFile))
@@ -770,6 +767,15 @@ public class BoltzController(
         }
 
         return View(vm);
+    }
+
+    internal static List<FileInfo> GetLogFilesPage(IEnumerable<FileInfo> logFiles, int offset)
+    {
+        return logFiles
+            .OrderByDescending(info => info.LastWriteTime)
+            .Skip(offset)
+            .Take(LogFilesPageSize)
+            .ToList();
     }
 
 
