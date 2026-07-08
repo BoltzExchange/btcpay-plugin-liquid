@@ -370,7 +370,8 @@ public class BoltzService(
         InvoiceEntity invoice,
         CancellationToken cancellation = default)
     {
-        if (payment.PaymentMethodId != PaymentTypes.LN.GetPaymentMethodId("BTC"))
+        if (payment.PaymentMethodId != PaymentTypes.LN.GetPaymentMethodId("BTC") &&
+            payment.PaymentMethodId != PaymentTypes.LNURL.GetPaymentMethodId("BTC"))
         {
             return null;
         }
