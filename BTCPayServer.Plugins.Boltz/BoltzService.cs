@@ -458,6 +458,7 @@ public class BoltzService(
         await daemon.TryConfigure(new DaemonConfig
         {
             LogLevel = settings.LogLevel,
+            LiquidEsploraConcurrency = settings.LiquidEsploraConcurrency,
             LiquidWalletSyncInterval = settings.LiquidWalletSyncInterval,
         });
 

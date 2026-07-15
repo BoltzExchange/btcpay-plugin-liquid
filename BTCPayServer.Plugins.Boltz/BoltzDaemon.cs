@@ -45,6 +45,7 @@ public class ClnConfig
 public class DaemonConfig
 {
     public string? LogLevel { get; set; }
+    public uint? LiquidEsploraConcurrency { get; set; }
     public uint? LiquidWalletSyncInterval { get; set; }
 }
 
@@ -216,6 +217,9 @@ public class BoltzDaemon(
 
     internal static string BuildConfig(DaemonConfig config, string networkName, Uri defaultUri)
     {
+        var liquidEsploraConcurrency = config.LiquidEsploraConcurrency is { } concurrency
+            ? $"liquidEsploraConcurrency = {concurrency}"
+            : string.Empty;
         var liquidWalletSyncInterval = config.LiquidWalletSyncInterval is { } interval
             ? $"liquidWalletSyncInterval = {interval}"
             : string.Empty;
@@ -226,6 +230,7 @@ public class BoltzDaemon(
         referralId = "btcpay"
         logmaxsize = 1
         loglevel = "{config.LogLevel ?? "info"}"
+        {liquidEsploraConcurrency}
         {liquidWalletSyncInterval}
 
         [RPC]
