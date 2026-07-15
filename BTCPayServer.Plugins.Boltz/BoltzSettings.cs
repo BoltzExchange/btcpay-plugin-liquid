@@ -11,6 +11,14 @@ public class BoltzServerSettings
 
     [Display(Name = "Log Level")]
     public string LogLevel { get; set; } = "info";
+
+    [Display(Name = "Liquid Esplora Concurrency")]
+    [Range(1, 256)]
+    public uint? LiquidEsploraConcurrency { get; set; }
+
+    [Display(Name = "Liquid Wallet Sync Interval")]
+    [Range(60, 3600)]
+    public uint? LiquidWalletSyncInterval { get; set; }
 }
 
 public class BoltzSettings

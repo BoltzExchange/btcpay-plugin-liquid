@@ -45,6 +45,8 @@ public class ClnConfig
 public class DaemonConfig
 {
     public string? LogLevel { get; set; }
+    public uint? LiquidEsploraConcurrency { get; set; }
+    public uint? LiquidWalletSyncInterval { get; set; }
 }
 
 
@@ -56,7 +58,7 @@ public class BoltzDaemon(
     IConfiguration configuration
 )
 {
-    private static readonly Version ClientVersion = new("2.12.3");
+    private static readonly Version ClientVersion = new("2.12.5");
     private static readonly SemaphoreSlim BinarySemaphore = new(1, 1);
     private const string ClientCacheDirSetting = "BOLTZ_CLIENT_CACHE_DIR";
     private static readonly Lazy<string> ExpectedManifest = new(() =>
@@ -210,6 +212,17 @@ public class BoltzDaemon(
     public string GetConfig(DaemonConfig config)
     {
         var networkName = BtcNetwork.NBitcoinNetwork.ChainName.ToString().ToLower();
+        return BuildConfig(config, networkName, DefaultUri);
+    }
+
+    internal static string BuildConfig(DaemonConfig config, string networkName, Uri defaultUri)
+    {
+        var liquidEsploraConcurrency = config.LiquidEsploraConcurrency is { } concurrency
+            ? $"liquidEsploraConcurrency = {concurrency}"
+            : string.Empty;
+        var liquidWalletSyncInterval = config.LiquidWalletSyncInterval is { } interval
+            ? $"liquidWalletSyncInterval = {interval}"
+            : string.Empty;
 
         return $"""
         standalone = true
@@ -217,10 +230,12 @@ public class BoltzDaemon(
         referralId = "btcpay"
         logmaxsize = 1
         loglevel = "{config.LogLevel ?? "info"}"
+        {liquidEsploraConcurrency}
+        {liquidWalletSyncInterval}
 
         [RPC]
-        host = "{DefaultUri.Host}"
-        port = {DefaultUri.Port}
+        host = "{defaultUri.Host}"
+        port = {defaultUri.Port}
         rest.disable = true
         """;
     }
