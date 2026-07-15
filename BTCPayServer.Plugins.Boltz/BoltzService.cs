@@ -455,7 +455,11 @@ public class BoltzService(
     public async Task SetServerSettings(BoltzServerSettings settings)
     {
         await settingsRepository.UpdateSetting(settings, SettingsName);
-        await daemon.TryConfigure(new DaemonConfig { LogLevel = settings.LogLevel });
+        await daemon.TryConfigure(new DaemonConfig
+        {
+            LogLevel = settings.LogLevel,
+            LiquidWalletSyncInterval = settings.LiquidWalletSyncInterval,
+        });
 
         ServerSettings = settings;
     }

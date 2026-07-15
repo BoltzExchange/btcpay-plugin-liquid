@@ -48,6 +48,13 @@
         <span asp-validation-for="ServerSettings.LogLevel" class="text-danger"></span>
     </div>
 
+    <div class="form-group">
+        <label asp-for="ServerSettings.LiquidWalletSyncInterval" class="form-label"></label>
+        <input asp-for="ServerSettings.LiquidWalletSyncInterval" type="number" min="60" max="3600" class="form-control" />
+        <div class="form-text">Interval in seconds between automatic Liquid wallet syncs. Leave empty to use the Boltz Client default, or enter a value from 60 to 3600.</div>
+        <span asp-validation-for="ServerSettings.LiquidWalletSyncInterval" class="text-danger"></span>
+    </div>
+
 
     <button name="command" type="submit" class="btn btn-primary mb-4" value="Save">
         Save

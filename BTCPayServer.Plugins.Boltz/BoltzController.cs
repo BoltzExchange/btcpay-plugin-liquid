@@ -787,6 +787,11 @@ public class BoltzController(
         {
             case "Save":
                 {
+                    if (!ModelState.IsValid)
+                    {
+                        return View(vm);
+                    }
+
                     try
                     {
                         var settings = vm.ServerSettings!;

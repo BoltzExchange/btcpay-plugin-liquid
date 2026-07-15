@@ -59,6 +59,17 @@ namespace BTCPayServer.Plugins.Boltz.Tests
             }
         }
 
+        [Fact]
+        public void IncludesLiquidWalletSyncIntervalInClientConfig()
+        {
+            var config = BoltzDaemon.BuildConfig(
+                new DaemonConfig { LiquidWalletSyncInterval = 60 },
+                "regtest",
+                new Uri("https://127.0.0.1:9002"));
+
+            Assert.Contains("liquidWalletSyncInterval = 60", config);
+        }
+
         private static FileInfo WriteLogFile(DirectoryInfo directory, string fileName, DateTimeOffset lastWriteTime)
         {
             var file = new FileInfo(Path.Combine(directory.FullName, fileName));
