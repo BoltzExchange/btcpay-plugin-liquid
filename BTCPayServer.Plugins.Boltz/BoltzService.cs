@@ -402,7 +402,11 @@ public class BoltzService(
             settlementData.SettlementAddress = reverseSwap.ClaimAddress;
             settlementData.SettlementTransactionId = reverseSwap.ClaimTransactionId;
         }
-        catch (Exception ex) when (!BoltzClient.IsCancellation(ex))
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
         {
             logger.LogDebug(ex, "Could not load Boltz settlement data for payment {PaymentId} via swap id {SwapId}",
                 payment.Id, swapId);

@@ -34,14 +34,15 @@ public class BoltzClient : IDisposable
     private static GetPairsResponse? _pairs;
     private readonly ILogger<BoltzClient> _logger;
 
-    // Add default timeout and call options helpers
     private static readonly TimeSpan DefaultGrpcTimeout = TimeSpan.FromSeconds(10);
-    private CallOptions _defaultCallOptions => new CallOptions(headers: _metadata, cancellationToken: new CancellationTokenSource(DefaultGrpcTimeout).Token);
+    private CallOptions _defaultCallOptions => CreateCallOptionsWithTimeout(CancellationToken.None);
+
     private CallOptions CreateCallOptionsWithTimeout(CancellationToken cancellationToken)
     {
-        var source = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        source.CancelAfter(DefaultGrpcTimeout);
-        return CreateCallOptions(source.Token);
+        return new CallOptions(
+            headers: _metadata,
+            deadline: DateTime.UtcNow.Add(DefaultGrpcTimeout),
+            cancellationToken: cancellationToken);
     }
 
     private CallOptions CreateCallOptions(CancellationToken cancellationToken)
@@ -95,41 +96,56 @@ public class BoltzClient : IDisposable
         }
     }
 
-    public static bool IsCancellation(Exception exception)
+    internal static async Task<T> TranslateCancellation<T>(Task<T> call, CancellationToken cancellationToken)
     {
-        if (exception is OperationCanceledException)
+        try
         {
-            return true;
+            return await call;
         }
-
-        return exception is RpcException { StatusCode: StatusCode.Cancelled };
+        catch (RpcException ex) when (
+            ex.StatusCode == StatusCode.Cancelled &&
+            cancellationToken.IsCancellationRequested)
+        {
+            throw new OperationCanceledException("The gRPC call was canceled.", ex, cancellationToken);
+        }
     }
 
     public async Task<GetInfoResponse> GetInfo(CancellationToken cancellationToken = default)
     {
-        return await _client.GetInfoAsync(new GetInfoRequest(), CreateCallOptionsWithTimeout(cancellationToken));
+        var call = _client.GetInfoAsync(new GetInfoRequest(), CreateCallOptionsWithTimeout(cancellationToken));
+        return await TranslateCancellation(call.ResponseAsync, cancellationToken);
     }
 
-    public async Task<ListSwapsResponse> ListSwaps()
+    public async Task<ListSwapsResponse> ListSwaps(CancellationToken cancellationToken = default)
     {
-        return await ListSwaps(new ListSwapsRequest());
+        return await ListSwaps(new ListSwapsRequest(), cancellationToken);
     }
 
-    public async Task<ListSwapsResponse> ListSwaps(ListSwapsRequest request)
+    public async Task<ListSwapsResponse> ListSwaps(
+        ListSwapsRequest request,
+        CancellationToken cancellationToken = default)
     {
-        return await _client.ListSwapsAsync(request, _defaultCallOptions);
+        var call = _client.ListSwapsAsync(request, CreateCallOptionsWithTimeout(cancellationToken));
+        return await TranslateCancellation(call.ResponseAsync, cancellationToken);
     }
 
 
     public async Task<GetSwapInfoResponse> GetSwapInfo(string id, CancellationToken cancellationToken = default)
     {
-        return await _client.GetSwapInfoAsync(new GetSwapInfoRequest { SwapId = id },
+        var call = _client.GetSwapInfoAsync(
+            new GetSwapInfoRequest { SwapId = id },
             CreateCallOptionsWithTimeout(cancellationToken));
+        return await TranslateCancellation(call.ResponseAsync, cancellationToken);
     }
 
-    public async Task<GetSwapInfoResponse> GetSwapInfo(byte[] paymentHash)
+    public async Task<GetSwapInfoResponse> GetSwapInfo(
+        byte[] paymentHash,
+        CancellationToken cancellationToken = default)
     {
-        return await _client.GetSwapInfoAsync(new GetSwapInfoRequest { PaymentHash = ByteString.CopyFrom(paymentHash) }, _defaultCallOptions);
+        var call = _client.GetSwapInfoAsync(
+            new GetSwapInfoRequest { PaymentHash = ByteString.CopyFrom(paymentHash) },
+            CreateCallOptionsWithTimeout(cancellationToken));
+        return await TranslateCancellation(call.ResponseAsync, cancellationToken);
     }
 
     public AsyncServerStreamingCall<GetSwapInfoResponse> GetSwapInfoStream(string id,
@@ -345,25 +361,29 @@ public class BoltzClient : IDisposable
     public async Task<CreateReverseSwapResponse> CreateReverseSwap(CreateReverseSwapRequest request,
         CancellationToken cancellation = new CancellationToken())
     {
-        return await _client.CreateReverseSwapAsync(request, CreateCallOptionsWithTimeout(cancellation));
+        var call = _client.CreateReverseSwapAsync(request, CreateCallOptionsWithTimeout(cancellation));
+        return await TranslateCancellation(call.ResponseAsync, cancellation);
     }
 
     public async Task<ChainSwapInfo> CreateChainSwap(CreateChainSwapRequest request,
         CancellationToken cancellation = default)
     {
-        return await _client.CreateChainSwapAsync(request, CreateCallOptionsWithTimeout(cancellation));
+        var call = _client.CreateChainSwapAsync(request, CreateCallOptionsWithTimeout(cancellation));
+        return await TranslateCancellation(call.ResponseAsync, cancellation);
     }
 
     public async Task<CreateSwapResponse> CreateSwap(CreateSwapRequest request,
         CancellationToken cancellation = default)
     {
-        return await _client.CreateSwapAsync(request, CreateCallOptionsWithTimeout(cancellation));
+        var call = _client.CreateSwapAsync(request, CreateCallOptionsWithTimeout(cancellation));
+        return await TranslateCancellation(call.ResponseAsync, cancellation);
     }
 
     public async Task<GetSwapInfoResponse> RefundSwap(RefundSwapRequest request,
         CancellationToken cancellation = default)
     {
-        return await _client.RefundSwapAsync(request, CreateCallOptionsWithTimeout(cancellation));
+        var call = _client.RefundSwapAsync(request, CreateCallOptionsWithTimeout(cancellation));
+        return await TranslateCancellation(call.ResponseAsync, cancellation);
     }
 
     public async Task<Tenant> CreateTenant(string name)
@@ -378,11 +398,9 @@ public class BoltzClient : IDisposable
 
     public async Task Stop(CancellationToken cancellationToken = default)
     {
-        if (_invoiceStreamCancel is not null)
-        {
-            await _invoiceStreamCancel.CancelAsync();
-        }
-        await _client.StopAsync(new Empty(), CreateCallOptionsWithTimeout(cancellationToken));
+        CancelInvoiceStream();
+        var call = _client.StopAsync(new Empty(), CreateCallOptionsWithTimeout(cancellationToken));
+        await TranslateCancellation(call.ResponseAsync, cancellationToken);
     }
 
     public async Task<BakeMacaroonResponse> BakeMacaroon(ulong tenantId)
@@ -411,46 +429,62 @@ public class BoltzClient : IDisposable
     {
         add
         {
-            if (_invoiceStreamCancel is null)
-            {
-                Task.Run(InvoiceStream);
-            }
-
             _swapUpdate += value;
+            var source = new CancellationTokenSource();
+            if (Interlocked.CompareExchange(ref _invoiceStreamCancel, source, null) is null)
+            {
+                _ = Task.Run(() => InvoiceStream(source));
+            }
         }
         remove
         {
             _swapUpdate -= value;
             if (_swapUpdate is null)
             {
-                _invoiceStreamCancel?.Cancel();
-                _invoiceStreamCancel = null;
+                CancelInvoiceStream();
             }
         }
     }
 
-    private async Task InvoiceStream()
+    private void CancelInvoiceStream()
     {
-        _invoiceStreamCancel = new CancellationTokenSource();
-        while (!_invoiceStreamCancel.IsCancellationRequested)
+        Interlocked.Exchange(ref _invoiceStreamCancel, null)?.Cancel();
+    }
+
+    private async Task InvoiceStream(CancellationTokenSource source)
+    {
+        try
         {
-            try
+            while (!source.IsCancellationRequested)
             {
-                using var stream = GetSwapInfoStream("", _invoiceStreamCancel.Token);
-                while (await stream.ResponseStream.MoveNext(_invoiceStreamCancel.Token))
+                try
                 {
-                    _swapUpdate?.Invoke(this, stream.ResponseStream.Current);
+                    using var stream = GetSwapInfoStream("", source.Token);
+                    while (await TranslateCancellation(
+                               stream.ResponseStream.MoveNext(source.Token),
+                               source.Token))
+                    {
+                        _swapUpdate?.Invoke(this, stream.ResponseStream.Current);
+                    }
+                }
+                catch (ObjectDisposedException)
+                {
+                    break;
+                }
+                catch (Exception) when (source.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch (Exception e)
+                {
+                    _logger.LogError(e, "Error in swap stream");
+                    await Task.Delay(3000);
                 }
             }
-            catch (ObjectDisposedException)
-            {
-                break;
-            }
-            catch (Exception e) when (!_invoiceStreamCancel.IsCancellationRequested)
-            {
-                _logger.LogError(e, "Error in swap stream");
-                await Task.Delay(3000);
-            }
+        }
+        finally
+        {
+            Interlocked.CompareExchange(ref _invoiceStreamCancel, null, source);
         }
     }
 

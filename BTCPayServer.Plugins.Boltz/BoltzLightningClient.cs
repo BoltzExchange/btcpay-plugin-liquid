@@ -104,7 +104,7 @@ public class BoltzLightningClient(
         CancellationToken cancellation = new())
     {
         var client = await GetClient();
-        var info = await client.GetSwapInfo(invoiceId);
+        var info = await client.GetSwapInfo(invoiceId, cancellation);
         return InvoiceFromSwapInfo(info.ReverseSwap);
     }
 
@@ -123,7 +123,7 @@ public class BoltzLightningClient(
         CancellationToken cancellation = new())
     {
         var client = await GetClient();
-        var swaps = await client.ListSwaps();
+        var swaps = await client.ListSwaps(cancellation);
         return swaps.ReverseSwaps.ToList().Select(InvoiceFromSwapInfo).ToArray();
     }
 
@@ -152,7 +152,7 @@ public class BoltzLightningClient(
         var client = await GetClient();
         try
         {
-            var info = await client.GetSwapInfo(Convert.FromHexString(paymentHash));
+            var info = await client.GetSwapInfo(Convert.FromHexString(paymentHash), cancellation);
             return PaymentFromSwapInfo(info.Swap);
         }
         catch (RpcException e) when (e.StatusCode == StatusCode.NotFound)
@@ -187,7 +187,7 @@ public class BoltzLightningClient(
         }
 
         var client = await GetClient();
-        var swaps = await client.ListSwaps(listSwapsRequest);
+        var swaps = await client.ListSwaps(listSwapsRequest, cancellation);
         return swaps.Swaps.ToList().Select(PaymentFromSwapInfo).ToArray();
     }
 
@@ -313,12 +313,14 @@ public class BoltzLightningClient(
             return new PayResponse(PayResult.Ok, payDetails);
         }
 
-        var source = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-        cancellation.Register(source.Cancel);
+        using var source = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
+        source.CancelAfter(TimeSpan.FromSeconds(15));
         try
         {
-            using var stream = client.GetSwapInfoStream(response.Id, cancellation);
-            while (await stream.ResponseStream.MoveNext(source.Token))
+            using var stream = client.GetSwapInfoStream(response.Id, source.Token);
+            while (await BoltzClient.TranslateCancellation(
+                       stream.ResponseStream.MoveNext(source.Token),
+                       source.Token))
             {
                 var swap = stream.ResponseStream.Current.Swap;
                 if (swap.State == SwapState.Successful)
@@ -338,7 +340,7 @@ public class BoltzLightningClient(
                 }
             }
         }
-        catch (RpcException) when (source.IsCancellationRequested)
+        catch (OperationCanceledException) when (source.IsCancellationRequested)
         { }
 
         return new PayResponse(PayResult.Unknown, "payment is waiting for confirmation");
@@ -401,7 +403,9 @@ public class BoltzLightningClient(
 
             try
             {
-                while (await _stream.ResponseStream.MoveNext(cancellation))
+                while (await BoltzClient.TranslateCancellation(
+                           _stream.ResponseStream.MoveNext(cancellation),
+                           cancellation))
                 {
                     var id = _stream.ResponseStream.Current.ReverseSwap?.Id;
                     if (id != null)
@@ -411,11 +415,6 @@ public class BoltzLightningClient(
                 }
 
                 throw new Exception("stream ended");
-            }
-            catch (Exception ex) when (BoltzClient.IsCancellation(ex))
-            {
-                _stream = null;
-                throw new OperationCanceledException("The invoice stream was canceled.", ex, cancellation);
             }
             catch (Exception)
             {
