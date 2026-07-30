@@ -633,7 +633,9 @@ public class BoltzController(
         try
         {
             using var stream = Boltz.GetSwapInfoStream(id, ct);
-            while (await stream.ResponseStream.MoveNext(ct))
+            while (await BoltzClient.TranslateCancellation(
+                       stream.ResponseStream.MoveNext(ct),
+                       ct))
             {
                 var info = stream.ResponseStream.Current;
                 var swapId = info.Swap?.Id ?? info.ReverseSwap?.Id ?? info.ChainSwap?.Id ?? "";
@@ -641,12 +643,11 @@ public class BoltzController(
                 await Response.Body.FlushAsync(ct);
             }
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        { }
         catch (Exception e)
         {
-            if (!BoltzClient.IsCancellation(e))
-            {
-                logger.LogError(e, "gRPC error while streaming swap info for swap {SwapId} in store {StoreId}", id, storeId);
-            }
+            logger.LogError(e, "gRPC error while streaming swap info for swap {SwapId} in store {StoreId}", id, storeId);
         }
     }
 
