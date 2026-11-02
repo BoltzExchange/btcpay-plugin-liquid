@@ -19,6 +19,10 @@ public class BoltzServerSettings
     [Display(Name = "Liquid Wallet Sync Interval")]
     [Range(60, 3600)]
     public uint? LiquidWalletSyncInterval { get; set; }
+
+    [Display(Name = "Boltz API URL")]
+    [Url]
+    public string? ApiUrl { get; set; }
 }
 
 public class BoltzSettings

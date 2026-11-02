@@ -47,6 +47,7 @@ public class DaemonConfig
     public string? LogLevel { get; set; }
     public uint? LiquidEsploraConcurrency { get; set; }
     public uint? LiquidWalletSyncInterval { get; set; }
+    public Uri? ApiUrl { get; set; }
 }
 
 
@@ -84,6 +85,8 @@ public class BoltzDaemon(
     private string ConfigFile => Path.Combine(DataDir, "boltz.toml");
 
     public readonly Uri DefaultUri = new("https://127.0.0.1:9002");
+    public const string DefaultApiUrl = "https://api.boltz.exchange";
+    public string ApiUrl { get; private set; } = DefaultApiUrl;
     public string CertFile => Path.Combine(DataDir, "tls.cert");
     public bool Starting => _startTask is not null && !_startTask.IsCompleted;
     public string LogFile => Path.Combine(DataDir, "boltz.log");
@@ -223,6 +226,9 @@ public class BoltzDaemon(
         var liquidWalletSyncInterval = config.LiquidWalletSyncInterval is { } interval
             ? $"liquidWalletSyncInterval = {interval}"
             : string.Empty;
+        var boltzSection = config.ApiUrl is { } apiUrl
+            ? $"\n\n[Boltz]\nurl = \"{FormatApiUrl(apiUrl)}\""
+            : string.Empty;
 
         return $"""
         standalone = true
@@ -236,9 +242,12 @@ public class BoltzDaemon(
         [RPC]
         host = "{defaultUri.Host}"
         port = {defaultUri.Port}
-        rest.disable = true
+        rest.disable = true{boltzSection}
         """;
     }
+
+    // boltz-client appends the API version itself, so the URL is stored without a trailing slash
+    internal static string FormatApiUrl(Uri apiUrl) => apiUrl.AbsoluteUri.TrimEnd('/');
 
     private async Task Configure(DaemonConfig config)
     {
@@ -247,6 +256,7 @@ public class BoltzDaemon(
             await _configSemaphore.WaitAsync();
 
             var newConfig = GetConfig(config);
+            ApiUrl = config.ApiUrl is { } apiUrl ? FormatApiUrl(apiUrl) : DefaultApiUrl;
             if (Path.Exists(ConfigFile))
             {
                 var current = await File.ReadAllTextAsync(ConfigFile);

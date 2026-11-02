@@ -464,6 +464,7 @@ public class BoltzService(
             LogLevel = settings.LogLevel,
             LiquidEsploraConcurrency = settings.LiquidEsploraConcurrency,
             LiquidWalletSyncInterval = settings.LiquidWalletSyncInterval,
+            ApiUrl = string.IsNullOrWhiteSpace(settings.ApiUrl) ? null : new Uri(settings.ApiUrl),
         });
 
         ServerSettings = settings;

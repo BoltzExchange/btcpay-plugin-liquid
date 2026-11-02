@@ -70,6 +70,28 @@ namespace BTCPayServer.Plugins.Boltz.Tests
             Assert.Contains("liquidWalletSyncInterval = 60", config);
         }
 
+        [Fact]
+        public void IncludesApiUrlInClientConfig()
+        {
+            var config = BoltzDaemon.BuildConfig(
+                new DaemonConfig { ApiUrl = new Uri("https://swaps.example.com/") },
+                "regtest",
+                new Uri("https://127.0.0.1:9002"));
+
+            Assert.Contains("[Boltz]\nurl = \"https://swaps.example.com\"", config.ReplaceLineEndings("\n"));
+        }
+
+        [Fact]
+        public void OmitsApiUrlFromClientConfigByDefault()
+        {
+            var config = BoltzDaemon.BuildConfig(
+                new DaemonConfig(),
+                "regtest",
+                new Uri("https://127.0.0.1:9002"));
+
+            Assert.DoesNotContain("[Boltz]", config);
+        }
+
         private static FileInfo WriteLogFile(DirectoryInfo directory, string fileName, DateTimeOffset lastWriteTime)
         {
             var file = new FileInfo(Path.Combine(directory.FullName, fileName));

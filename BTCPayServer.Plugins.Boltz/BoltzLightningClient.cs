@@ -235,7 +235,7 @@ public class BoltzLightningClient(
         if (_clnInfo == null)
         {
             var httpClient = new HttpClient();
-            string url = "https://api.boltz.exchange/v2/nodes";
+            string url = $"{daemon.ApiUrl}/v2/nodes";
             HttpResponseMessage response = await httpClient.GetAsync(url);
             response.EnsureSuccessStatusCode();
             string responseBody = await response.Content.ReadAsStringAsync();
